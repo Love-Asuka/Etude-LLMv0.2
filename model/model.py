@@ -23,7 +23,7 @@ class EtudeConfig:
     use_moe: bool = False
     expert_number: int = 4
     top_k: int = 2
-    shared_experts_number: int = 2  # 虽然定义但未在SparseMOE中使用
+    shared_experts_number: int = 2  
 
 class SingleHeadAttention(nn.Module):
     def __init__(self, config):
@@ -166,7 +166,7 @@ class SparseMOE(nn.Module):
         for expert_idx in range(self.expert_number):
             expert_layer = self.experts[expert_idx]
             idx, top_x = torch.where(expert_mask[expert_idx])
-            current_state = hidden_states.unsqueeze(0)[:, top_x, :].reshape(-1, hidden_dim)
+            current_state = hidden_states[top_x]
             current_hidden_states = expert_layer(current_state) * router_weights[top_x, idx].unsqueeze(-1)
             final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
 
@@ -180,7 +180,6 @@ class Block(nn.Module):
         self.att = MultiHeadAttention(config)
         self.ln1 = nn.LayerNorm(config.n_embd)
         
-        # 根据配置选择使用MOE或标准FFN
         self.use_moe = config.use_moe
         if self.use_moe:
             moe_config = MOEConfig(
@@ -216,36 +215,30 @@ class Etude(nn.Module):
         super().__init__()
         self.config = config
         
-
         self.token_embedding = nn.Embedding(config.vocab_size, config.n_embd)
         
 
         self.position_embedding = nn.Embedding(config.block_size, config.n_embd)
         
-
+        # Transformer blocks
         self.blocks = nn.ModuleList()
         for _ in range(config.n_layer):
             self.blocks.append(Block(config))
         
-
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
-        
-
+ 
         self.lm_head.weight = self.token_embedding.weight
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
-        
 
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(0)
         
-
         tok_emb = self.token_embedding(idx)  # (B, T, n_embd)
         pos_emb = self.position_embedding(pos)  # (1, T, n_embd)
         x = tok_emb + pos_emb
         
-
         total_aux_loss = 0.0
         aux_loss_coef = 0.01  # 辅助损失系数
         
@@ -253,7 +246,6 @@ class Etude(nn.Module):
         for block in self.blocks:
             x, router_logits, selected_experts = block(x)
             
-
             if router_logits is not None and self.config.use_moe:
                 aux_loss = self.compute_aux_loss(router_logits, selected_experts)
                 total_aux_loss = total_aux_loss + aux_loss
@@ -265,20 +257,19 @@ class Etude(nn.Module):
 
         loss = None
         if targets is not None:
- 
+   
             ce_loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), 
                 targets.view(-1), 
                 ignore_index=-1
             )
             
-
+   
             loss = ce_loss + aux_loss_coef * total_aux_loss
         
         return logits, loss
 
     def compute_aux_loss(self, router_logits, selected_experts):
-
 
         router_probs = F.softmax(router_logits, dim=-1)
         
@@ -362,9 +353,23 @@ class MyDataset(Dataset):
 
     def decode(self, ids):
         return self.enc.decode(ids)
+
+# 连通性测试
+def connectivity_test():
+    config = EtudeConfig(use_moe=True)
+    model = Etude(config)
+    idx = torch.randint(0, config.vocab_size, (config.batch_size, config.block_size))
+    targets = torch.randint(0, config.vocab_size, (config.batch_size, config.block_size))
+    logits, loss = model(idx, targets)
+    print("Logits shape:", logits.shape)
+    print("Loss:", loss)
+
+if __name__ == "__main__":
+    connectivity_test()
     
 
 
 
     
+
 
