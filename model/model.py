@@ -216,63 +216,63 @@ class Etude(nn.Module):
         super().__init__()
         self.config = config
         
-        # Token embedding层
+
         self.token_embedding = nn.Embedding(config.vocab_size, config.n_embd)
         
-        # Position embedding层
+
         self.position_embedding = nn.Embedding(config.block_size, config.n_embd)
         
-        # Transformer blocks
+
         self.blocks = nn.ModuleList()
         for _ in range(config.n_layer):
             self.blocks.append(Block(config))
         
-        # 最终的LayerNorm和输出层
+
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
         
-        # 权重绑定: token embedding和输出层的权重共享
+
         self.lm_head.weight = self.token_embedding.weight
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
         
-        # 生成位置索引 [0, 1, 2, ..., T-1]
+
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(0)
         
-        # 获取token和position embeddings
+
         tok_emb = self.token_embedding(idx)  # (B, T, n_embd)
         pos_emb = self.position_embedding(pos)  # (1, T, n_embd)
         x = tok_emb + pos_emb
         
-        # 初始化辅助损失
+
         total_aux_loss = 0.0
         aux_loss_coef = 0.01  # 辅助损失系数
         
-        # 通过所有transformer blocks
+
         for block in self.blocks:
             x, router_logits, selected_experts = block(x)
             
-            # 如果使用MOE且返回了路由信息，计算辅助损失
+
             if router_logits is not None and self.config.use_moe:
                 aux_loss = self.compute_aux_loss(router_logits, selected_experts)
                 total_aux_loss = total_aux_loss + aux_loss
         
-        # 最终层归一化和输出
+
         x = self.ln_f(x)
         logits = self.lm_head(x)  # (B, T, vocab_size)
         
-        # 计算总损失
+
         loss = None
         if targets is not None:
-            # 计算交叉熵损失
+ 
             ce_loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), 
                 targets.view(-1), 
                 ignore_index=-1
             )
             
-            # 加上辅助损失
+
             loss = ce_loss + aux_loss_coef * total_aux_loss
         
         return logits, loss
@@ -286,20 +286,20 @@ class Etude(nn.Module):
         Returns:
             loss: 标量
         """
-        # 计算路由概率
+
         router_probs = F.softmax(router_logits, dim=-1)
         
-        # 创建专家选择掩码
+
         expert_mask = F.one_hot(selected_experts, num_classes=self.config.expert_number)
         expert_mask = expert_mask.sum(dim=1)  # (B*T, expert_number)
         
-        # 计算每个专家被选中的次数
+
         expert_count = expert_mask.sum(dim=0)  # (expert_number,)
         
-        # 计算每个专家的总路由概率
+
         router_prob_sum = router_probs.sum(dim=0)  # (expert_number,)
         
-        # 计算负载均衡损失
+
         loss_aux = self.config.expert_number * torch.sum(
             (expert_count / expert_count.sum()) * router_prob_sum
         )
@@ -370,6 +370,7 @@ class MyDataset(Dataset):
     def decode(self, ids):
         return self.enc.decode(ids)
     
+
 
 
     
