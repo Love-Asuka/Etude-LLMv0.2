@@ -278,14 +278,7 @@ class Etude(nn.Module):
         return logits, loss
 
     def compute_aux_loss(self, router_logits, selected_experts):
-        """
-        计算MOE的辅助损失（负载均衡损失）
-        Args:
-            router_logits: (B*T, expert_number)
-            selected_experts: (B*T, top_k)
-        Returns:
-            loss: 标量
-        """
+
 
         router_probs = F.softmax(router_logits, dim=-1)
         
@@ -374,3 +367,4 @@ class MyDataset(Dataset):
 
 
     
+
