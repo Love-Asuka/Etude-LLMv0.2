@@ -3,7 +3,7 @@ import os
 from tkinter import Tk, filedialog, simpledialog
 
 def select_directory(title):
-    """打开文件夹选择对话框"""
+
     root = Tk()
     root.withdraw()
     folder = filedialog.askdirectory(title=title)
@@ -11,7 +11,7 @@ def select_directory(title):
     return folder
 
 def get_pair_count():
-    """获取用户设置的每文件对话对数"""
+
     root = Tk()
     root.withdraw()
     count = simpledialog.askinteger(
@@ -25,7 +25,7 @@ def get_pair_count():
     return count or 1000  # 默认值1000
 
 def process_json_file(input_path, output_folder, conversations_per_file):
-    """处理单个JSON文件，按对话数量分割"""
+
     base_name = os.path.splitext(os.path.basename(input_path))[0]
     
     conversation_count = 0
@@ -38,11 +38,11 @@ def process_json_file(input_path, output_folder, conversations_per_file):
                 data = json.loads(line)
                 conversations = data.get('conversations', [])
                 
-                # 跳过无效对话数据
+                
                 if not conversations:
                     continue
                 
-                # 创建新文件
+       
                 if conversation_count % conversations_per_file == 0:
                     if output_file:
                         output_file.close()
@@ -108,3 +108,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
